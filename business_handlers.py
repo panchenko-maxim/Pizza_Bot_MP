@@ -275,7 +275,7 @@ def order_menu_handler(user, data):
     elif data == 'put_into_processing':
         user.status_change(2)
         user.send_message("Дякуємо за замовлення! Очікуйте на зворотній зв'язок!")
-        sleep(2)
+        # sleep(2)
         main_menu(user)
     elif data == 'back_to_cart':
         return choose_pizza_menu(user)

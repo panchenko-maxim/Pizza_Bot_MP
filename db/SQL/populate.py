@@ -165,6 +165,8 @@ for pizza in pizzas:
         cursor.execute(f"SELECT id FROM Ingredient WHERE name=? ", [ingr['ingr']])
         ingr_id = cursor.fetchall()[0][0]
 
-        query = f"INSERT INTO IngredientInPizza (ingredient_id, pizza_id, grams) VALUES ({ingr_id}, {pizza_id}, {ingr['grams']})"
+        query = f"INSERT INTO IngredientInPizza (ingredient_id, pizza_id, grams) VALUES ({ingr_id}, {pizza_id}, " \
+                f"{ingr['grams']})"
+        print(query)
         cursor.execute(query)
     conn.commit()
