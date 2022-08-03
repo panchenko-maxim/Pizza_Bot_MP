@@ -110,7 +110,7 @@ def choose_pizza_menu(user):
             f'FROM Pizza \n' \
             f'JOIN IngredientInPizza ON Pizza.id = IngredientInPizza.pizza_id \n' \
             f'JOIN Ingredient ON Ingredient.id = IngredientInPizza.ingredient_id \n' \
-            f'WHERE Pizza.is_proto = 1 \n' \
+            f'WHERE Pizza.is_proto = true \n' \
             f'ORDER BY Pizza.id'
     cursor.execute(query)
     table = cursor.fetchall()
@@ -146,7 +146,7 @@ def choose_pizza_menu_handler(user, data):
         return order_menu(user)
 
     conn, cursor = connect()
-    cursor.execute(f'UPDATE User_ SET cur_pizza_id=? WHERE id = {user.id}', (data,))
+    cursor.execute(f'UPDATE User_ SET cur_pizza_id=%s WHERE id = {user.id}', (data,))
     conn.commit()
     user.cur_pizza_id = data
     choose_pizza_size_menu(user, data)
@@ -177,7 +177,7 @@ def cart_menu_handler(user, data):
     if data == 'back':
         return choose_pizza_menu(user)
     conn, cursor = connect()
-    conn.execute(f'DELETE FROM PizzaCart WHERE pizza_id = {data}')
+    cursor.execute(f'DELETE FROM PizzaCart WHERE pizza_id = {data}')
     conn.commit()
     cart_menu(user)
 
@@ -188,7 +188,7 @@ def choose_pizza_size_menu(user, pizza_id):
             f'FROM Pizza \n' \
             f'JOIN IngredientInPizza ON Pizza.id = IngredientInPizza.pizza_id \n' \
             f'JOIN Ingredient ON Ingredient.id = IngredientInPizza.ingredient_id\n' \
-            f'WHERE Pizza.id = ?'
+            f'WHERE Pizza.id = %s'
     cursor.execute(query, (pizza_id,))
     table = cursor.fetchall()
 
@@ -212,14 +212,14 @@ def choose_pizza_size_menu(user, pizza_id):
 
 def add_pizza_to_cart(user):
     query = f"INSERT INTO Pizza (name, is_custom, is_proto, size) " \
-            f"SELECT name, is_custom, 0, {user.cur_chosen_size} FROM Pizza WHERE id={user.cur_pizza_id};"
+            f"SELECT name, is_custom, false, {user.cur_chosen_size} FROM Pizza WHERE id={user.cur_pizza_id} RETURNING id"
     conn, cursor = connect()
     cursor.execute(query)
     conn.commit()
-    pizza_copy_id = cursor.lastrowid
+    pizza_copy_id = cursor.fetchone()[0]
 
     query = f"INSERT INTO IngredientInPizza (ingredient_id, pizza_id, grams) " \
-            f"SELECT ingredient_id, {pizza_copy_id}, grams FROM IngredientInPizza WHERE pizza_id={user.cur_pizza_id};"
+            f"SELECT ingredient_id, {pizza_copy_id}, grams FROM IngredientInPizza WHERE pizza_id={user.cur_pizza_id}"
     cursor.execute(query)
     conn.commit()
 
@@ -237,7 +237,7 @@ def choose_pizza_size_menu_handler(user, data):
         return choose_pizza_menu(user)
     if data[0] == 's':
         new_size = data[1]
-        cursor.execute(f'UPDATE User_ SET cur_chosen_size = ? WHERE id = {user.id}',
+        cursor.execute(f'UPDATE User_ SET cur_chosen_size = %s WHERE id = {user.id}',
                        (new_size,))
         conn.commit()
         user.cur_chosen_size = new_size
@@ -338,8 +338,8 @@ def admin_main_menu_handler(user, data):
 
 def admin_orders_menu(user):
     conn, cursor = connect()
-    quite = 'SELECT * FROM Orders'
-    cursor.execute(quite)
+    query = 'SELECT * FROM Orders'
+    cursor.execute(query)
     orders = cursor.fetchall()
     text = '-==ЗАМОВЛЕННЯ==-\n\n'
     description = ['№', 'date', 'status', 'price', 'address', 'cart_id', 'user_id']
@@ -348,11 +348,12 @@ def admin_orders_menu(user):
     callback_button = ''
     for order in orders:
         order_with_description = list(zip(description, order))
-        print(order_with_description)
+
         for i in range(len(order_with_description)):
             if i == 0:
                 text_on_button += f"{order_with_description[i][0]}: {order_with_description[i][1]}; "
                 callback_button += f"{order_with_description[i][1]}"
+
             elif i == 2:
                 text_on_button += f"{order_with_description[i][0]}: {order_status[order_with_description[i][1]]}; "
             elif i != 1 and 2 < i:
@@ -360,15 +361,49 @@ def admin_orders_menu(user):
         keyboard.row(InlineKeyboardButton(text_on_button, callback_data=callback_button))
         text_on_button = ''
         callback_button = ''
+    keyboard.row(InlineKeyboardButton('Назад', callback_data='back'))
 
     user.send_message(text, keyboard)
-    user.save_next_message_handler(admin_orders_menu_handler)
+    user.save_next_message_handler(admin_order_menu)
 
 
-def admin_orders_menu_handler(user, data):
-    pass
+def admin_order_menu(user, data):
+    if data == 'back':
+        return admin_main_menu(user)
+    conn, cursor = connect()
+    query = f'SELECT * FROM Orders WHERE id={data}'
+    cursor.execute(query)
+    order = cursor.fetchall()[0]
+
+    description = ['№', 'date', 'status', 'price', 'address', 'cart_id', 'user_id']
+    order_with_description = list(zip(description, order))
+    text = ''
+    for el in order_with_description:
+        text += f"{el[0]}: {el[1]}\n"
+
+    keyboard = InlineKeyboardMarkup()
+    keyboard.row(InlineKeyboardButton('Змінити статус замовлення', callback_data=f'admin_change_order_{data}_status'))
+    keyboard.row(InlineKeyboardButton('Змінити адресу замовлення', callback_data=f'admin_change_order_{data}_address'))
+    keyboard.row(InlineKeyboardButton('Видалити замовлення', callback_data=f'{data}_delete'))
+    keyboard.row(InlineKeyboardButton('Назад', callback_data='back'))
+
+    user.send_message(text, keyboard)
+    user.save_next_message_handler(admin_order_menu_handler)
+
+
+def admin_order_menu_handler(user, data):
+    if data == 'back':
+        admin_orders_menu(user)
+    elif data.split('_')[-1] == 'delete':
+        conn, cursor = connect()
+        conn.execute(f'DELETE FROM Orders WHERE id={data.split("_")[-2]}')
+        conn.commit()
+        admin_orders_menu(user)
+    else:
+        pass
 
 
 HANDLERS = [main_menu_handler, account_menu_handler, nickname_change_menu_handler,
             choose_pizza_menu_handler, choose_pizza_size_menu_handler, cart_menu_handler, order_menu_handler,
-            write_the_address_menu_handler, examination_handler, admin_main_menu_handler, admin_orders_menu_handler]
+            write_the_address_menu_handler, examination_handler, admin_main_menu_handler, admin_order_menu,
+            admin_order_menu_handler]

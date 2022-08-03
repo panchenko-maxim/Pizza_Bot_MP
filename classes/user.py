@@ -2,6 +2,7 @@ from db.db import connect
 from business_handlers import HANDLERS
 from tools.pizza_sizes import pizza_sizes
 from datetime import datetime
+from classes.errors import *
 
 
 class User:
@@ -29,7 +30,7 @@ class User:
         return pizza_sizes[int(self.cur_chosen_size)]
 
     def save_address(self, new_address):
-        query = f"UPDATE Orders SET address = ? WHERE id = {self.cur_order_id}"
+        query = f"UPDATE Orders SET address = %s WHERE id = {self.cur_order_id}"
         conn, cursor = connect()
         cursor.execute(query, (new_address,))
         conn.commit()
@@ -37,7 +38,7 @@ class User:
     def save_username(self, new_username):
         self.username = new_username
         query = f"UPDATE {self.table} \n" \
-                f"SET username = ? \n" \
+                f"SET username = %s \n" \
                 f"WHERE id = {self.id}"
         conn, cursor = connect()
         cursor.execute(query, (new_username,))
@@ -69,7 +70,8 @@ class User:
 
     @classmethod
     def create_default_user(cls, chat_id, conn, cursor):
-        cursor.execute(f'INSERT INTO {cls.table} (id, username) VALUES({chat_id}, "new_user")')
+        new_user = "'new_user'"
+        cursor.execute(f'INSERT INTO {cls.table} (id, username) VALUES({chat_id}, {new_user})')
         conn.commit()
 
     def save_next_message_handler(self, handler):
@@ -104,9 +106,10 @@ class User:
 
     def recreate_cart(self):
         conn, cursor = connect()
-        cursor.execute(f"INSERT INTO Cart DEFAULT VALUES")
+        cursor.execute(f"INSERT INTO Cart DEFAULT VALUES RETURNING id")
+        self.cur_cart_id = cursor.fetchone()[0]
         conn.commit()
-        self.cur_cart_id = cursor.lastrowid
+
         cursor.execute(f"UPDATE {self.table} SET cur_cart_id = {self.cur_cart_id} WHERE id = {self.id}")
         conn.commit()
         # TODO: удаление прошлой корзины
@@ -114,23 +117,20 @@ class User:
     def recreate_order(self):
         conn, cursor = connect()
 
-        query = f'INSERT INTO Orders (datetime, status, cart_id, user_id) VALUES ("{datetime.now()}", 1, {self.cur_cart_id}, {self.id})'
-        conn.execute(query)
+        query = f"INSERT INTO Orders (datetime, status, cart_id, user_id) VALUES ('{datetime.now()}', 1, {self.cur_cart_id}, {self.id}) RETURNING id"
+        cursor.execute(query)  # был conn
+        self.cur_order_id = cursor.fetchone()[0]
         conn.commit()
 
-        query = 'SELECT last_insert_rowid() FROM Orders'
-        cursor.execute(query)
-        self.cur_order_id = cursor.fetchall()[0][0]
-
-        query = f'UPDATE User_ SET cur_order_id = ? WHERE id = {self.id}'
-        conn.execute(query, (self.cur_order_id,))
+        query = f'UPDATE User_ SET cur_order_id = %s WHERE id = {self.id}'
+        cursor.execute(query, (self.cur_order_id,))
         conn.commit()
 
     def status_change(self, num):
         conn, cursor = connect()
 
         query = f"UPDATE Orders SET status = {num} WHERE id = {self.cur_order_id}"
-        conn.execute(query)
+        cursor.execute(query)
         conn.commit()
 
 

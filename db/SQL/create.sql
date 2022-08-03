@@ -1,11 +1,11 @@
 CREATE TABLE Ingredient(
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     name VARCHAR(30),
     price FLOAT
 );
 
 CREATE TABLE Pizza(
-    id INTEGER PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     name VARCHAR(20),
     is_custom BOOLEAN,
     is_proto BOOLEAN,
@@ -13,11 +13,11 @@ CREATE TABLE Pizza(
 );
 
 CREATE TABLE Cart(
-    id INTEGER PRIMARY KEY
+    id SERIAL PRIMARY KEY
 );
 
 CREATE TABLE User_(
-    id INTEGER PRIMARY KEY, -- chat_id
+    id SERIAL PRIMARY KEY, -- chat_id
     username VARCHAR(20),
     phone VARCHAR(20) NULL,
     email VARCHAR(30) NULL,
@@ -44,8 +44,8 @@ CREATE TABLE PizzaCart(
 );
 
 CREATE TABLE Orders(
-    id INTEGER PRIMARY KEY,
-    datetime TIMESTAMP CURRENT_TIMESTAMP,
+    id SERIAL PRIMARY KEY,
+    datetime TIMESTAMP DEFAULT NOW(),
     status INT NULL,
     price FLOAT,
     address VARCHAR(50),
