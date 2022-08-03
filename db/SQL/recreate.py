@@ -1,51 +1,29 @@
 import sqlite3
 import psycopg2
-from dotenv import load_dotenv
-import pathlib
 import os
-
-load_dotenv(str(pathlib.Path(__file__).parent.parent.parent.joinpath('.env')))
-
-
-def connect_sqlite3():
-    conn = sqlite3.connect('db/data.db')
-    cursor = conn.cursor()
-    return conn, cursor
+from pathlib import Path
+from db.db import connect
 
 
-# def connect_postgres():
-#     conn = psycopg2.connect(
-#         database='pizza_bot_db',
-#         user='pizza_user',
-#         password='pizza'
-#     )
-#     return conn, conn.cursor()
+"""
+ниже мы закоментили вариант 1 - запуска stand_alone скриптов
+"""
+# from sys import path
+# from pathlib import Path
+#
+# path.append(str(Path(__file__).parent.parent))
+# print(path)
+#
+# from db import connect
 
 
-def connect_postgres():
-    conn = psycopg2.connect(
-        database='dd3vf8eisacuoi',
-        user='vpoobffzmpavuh',
-        password=os.environ['DB_PASSWORD'],
-        host='ec2-54-75-26-218.eu-west-1.compute.amazonaws.com',
-        port=5432
-    )
-    return conn, conn.cursor()
+if __name__ == '__main__':
+    conn, cursor = connect()
 
+    for file in ['delete.sql', 'create.sql']:
+        for query in open(Path('db').joinpath('SQL').joinpath(file)).read().strip().split(';'):
+            print(query)
+            if query != '':
+                cursor.execute(query)
 
-def connect(db='postgres'):
-    if db == 'postgres':
-        return connect_postgres()
-    elif db == 'sqlite3':
-        return connect_sqlite3()
-
-
-conn, cursor = connect()
-
-for file in ['delete.sql', 'create.sql']:
-    for query in open(file).read().strip().split(';'):
-        print(query)
-        if query != '':
-            cursor.execute(query)
-
-    conn.commit()
+        conn.commit()

@@ -42,4 +42,5 @@ def inline_buttons_handler(call):
     bot.answer_callback_query(call.id)
 
 
-bot.polling()
+if __name__ == '__main__':
+    bot.polling()
