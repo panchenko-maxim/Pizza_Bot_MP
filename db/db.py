@@ -13,13 +13,13 @@ def connect_sqlite3():
     return conn, cursor
 
 
-# def connect_postgres():
-#     conn = psycopg2.connect(
-#         database='pizza_bot_db',
-#         user='pizza_user',
-#         password='pizza'
-#     )
-#     return conn, conn.cursor()
+def connect_postgres_local():
+    conn = psycopg2.connect(
+        database='pizza_bot_db',
+        user='pizza_user',
+        password='pizza'
+    )
+    return conn, conn.cursor()
 
 
 def connect_postgres():
@@ -33,10 +33,13 @@ def connect_postgres():
     return conn, conn.cursor()
 
 
-def connect(db='postgres'):
-    if db == 'postgres':
-        return connect_postgres()
-    elif db == 'sqlite3':
+def connect(db_v='postgres', db=os.environ['DB']):
+    if db_v == 'postgres':
+        if db == 'local':
+            return connect_postgres_local()
+        elif db == 'heroku':
+            return connect_postgres()
+    elif db_v == 'sqlite3':
         return connect_sqlite3()
 
 
