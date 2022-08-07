@@ -321,19 +321,19 @@ def examination_handler(user, text):
 def admin_main_menu(user):
     keyboard = InlineKeyboardMarkup()
     keyboard.row(InlineKeyboardButton('Замовлення', callback_data='orders'))
-    keyboard.row(InlineKeyboardButton('Добавити інгридієнти', callback_data='add_ingredients'))
-    keyboard.row(InlineKeyboardButton('Створити піцу', callback_data='create_pizza'))
+    keyboard.row(InlineKeyboardButton('Інгридієнти', callback_data='ingredients'))
+    keyboard.row(InlineKeyboardButton('Піци', callback_data='pizzas'))
     user.send_message('!!!***МЕНЮ АДМІНА***!!!', keyboard)
     user.save_next_message_handler(admin_main_menu_handler)
 
 
 def admin_main_menu_handler(user, data):
     if data == 'orders':
-        return admin_orders_menu(user)
-    elif data == 'add_ingredients':
-        pass
-    elif data == 'create_pizza':
-        pass
+        admin_orders_menu(user)
+    elif data == 'ingredients':
+        admin_ingredients_menu(user)
+    elif data == 'pizzas':
+        admin_pizzas_menu(user)
 
 
 def admin_orders_menu(user):
@@ -379,10 +379,13 @@ def admin_order_menu(user, data):
     order_with_description = list(zip(description, order))
     text = ''
     for el in order_with_description:
-        text += f"{el[0]}: {el[1]}\n"
+        if el[0] == 'status':
+            text += f"{el[0]}: {order_status[el[1]]}\n"
+        else:
+            text += f"{el[0]}: {el[1]}\n"
 
     keyboard = InlineKeyboardMarkup()
-    keyboard.row(InlineKeyboardButton('Змінити статус замовлення', callback_data=f'admin_change_order_{data}_status'))
+    keyboard.row(InlineKeyboardButton('Змінити статус замовлення на "виконано"', callback_data=f'admin_change_order_{data}_status'))
     keyboard.row(InlineKeyboardButton('Змінити адресу замовлення', callback_data=f'admin_change_order_{data}_address'))
     keyboard.row(InlineKeyboardButton('Видалити замовлення', callback_data=f'{data}_delete'))
     keyboard.row(InlineKeyboardButton('Назад', callback_data='back'))
@@ -392,18 +395,223 @@ def admin_order_menu(user, data):
 
 
 def admin_order_menu_handler(user, data):
+    conn, cursor = connect()
     if data == 'back':
         admin_orders_menu(user)
-    elif data.split('_')[-1] == 'delete':
-        conn, cursor = connect()
-        conn.execute(f'DELETE FROM Orders WHERE id={data.split("_")[-2]}')
+    elif data.split('_')[-1] == 'address':
+        user.cur_order_id = int(data.split("_")[-2])
+        cursor.execute(f"UPDATE User_ SET cur_order_id = {user.cur_order_id} WHERE id={user.id}")
+        conn.commit()
+        user.send_message('Будь ласка, напишіть адресу: ')
+        user.save_next_message_handler(admin_change_the_address_handler)
+    else:
+        id_order = int(data.split("_")[-2])
+        if data.split('_')[-1] == 'delete':
+            cursor.execute(f'DELETE FROM Orders WHERE id={id_order}')
+        elif data.split('_')[-1] == 'status':
+            cursor.execute(f"UPDATE Orders SET status = 3 WHERE id={id_order}")
         conn.commit()
         admin_orders_menu(user)
-    else:
-        pass
+
+
+def admin_change_the_address_handler(user, text):
+    user.save_address(text)
+    admin_order_menu(user, user.cur_order_id)
+
+
+def admin_ingredients_menu(user):
+    text = "***Меню Інгредієнти***\n"
+    query = f"SELECT * FROM Ingredient"
+    conn, cursor = connect()
+    cursor.execute(query)
+    table = cursor.fetchall()
+    for el in table:
+        text += f"{el[0]}) {el[1]} - {el[2]} грн.\n"
+    keyboard = InlineKeyboardMarkup()
+    keyboard.row(InlineKeyboardButton('Видалити інгредієнт', callback_data='delete_ingredient'))
+    keyboard.row(InlineKeyboardButton('Створити інгредієнт', callback_data='create_ingredient'))
+    keyboard.row(InlineKeyboardButton('Назад', callback_data='back'))
+    user.send_message(text, keyboard)
+    user.save_next_message_handler(admin_ingredients_menu_handler)
+
+
+def admin_ingredients_menu_handler(user, data):
+    if data == 'back':
+        admin_main_menu(user)
+    elif data == 'delete_ingredient':
+        delete_ingredient_menu(user)
+    elif data == 'create_ingredient':
+        user.send_message('Напишіть інгредієнт та ціну(цифрами) за 100 грам через пробіл')
+        user.save_next_message_handler(create_new_ingredient_handler)
+
+
+def create_new_ingredient_handler(user, text):
+    # new_ingredient = text.split()
+    # if new_ingredient[-1].isdigit() and len(new_ingredient) >= 2:
+    #     query = f'''INSERT INTO Ingredient (name, price) VALUES ('{" ".join(new_ingredient[:-1])}', {new_ingredient[-1]})'''
+    #     conn, cursor = connect()
+    #     cursor.execute(query)
+    #     conn.commit()
+    create_new_ingredient(text)
+    admin_ingredients_menu(user)
+
+
+def create_new_ingredient(text):
+    new_ingredient = text.split()
+    if new_ingredient[-1].isdigit() and len(new_ingredient) >= 2:
+        query = f'''INSERT INTO Ingredient (name, price) VALUES ('{" ".join(new_ingredient[:-1])}', {new_ingredient[-1]})'''
+        conn, cursor = connect()
+        cursor.execute(query)
+        conn.commit()
+
+
+def delete_ingredient_menu(user):
+    conn, cursor = connect()
+    query = f"SELECT * FROM Ingredient"
+    cursor.execute(query)
+    table = cursor.fetchall()
+    cart_text = 'Корзина пуста' if len(table) == 0 else 'Інгредієнти'
+
+    keyboard = InlineKeyboardMarkup()
+    for el in table:
+        keyboard.row(InlineKeyboardButton(f"{el[0]}) Видалити: {el[1]} - {el[2]}", callback_data=f"{el[0]}"))
+    keyboard.row(InlineKeyboardButton('Назад', callback_data='back'))
+
+    user.send_message(cart_text, keyboard)
+    user.save_next_message_handler(delete_ingredient_menu_handler)
+
+
+def delete_ingredient_menu_handler(user, data):
+    if data == 'back':
+        return admin_ingredients_menu(user)
+    conn, cursor = connect()
+    cursor.execute(f'DELETE FROM Ingredient WHERE id = {data}')
+    conn.commit()
+    delete_ingredient_menu(user)
+
+
+def select_proto_true_pizzas_and_create_text():
+    conn, cursor = connect()
+
+    # Достаем все прото пиццы
+    query = f'SELECT Pizza.id, Pizza.name, Ingredient.name \n' \
+            f'FROM Pizza \n' \
+            f'JOIN IngredientInPizza ON Pizza.id = IngredientInPizza.pizza_id \n' \
+            f'JOIN Ingredient ON Ingredient.id = IngredientInPizza.ingredient_id \n' \
+            f'WHERE Pizza.is_proto = true'
+    cursor.execute(query)
+    table = cursor.fetchall()
+
+    text = ''
+    id_now = None
+
+    for row in table:
+        if id_now == row[0]:
+            text += f"{row[2]}, "
+        elif id_now is None:
+            id_now = row[0]
+            text += f'{row[0]}) {row[1]} ({row[2]}, '
+        else:
+            id_now = row[0]
+            text = text[:-2]
+            text += f')\n{row[0]}) {row[1]}({row[2]}, '
+    text = text[:-2] + ')'
+    return text
+
+
+def admin_pizzas_menu(user):
+    pizzas_text = select_proto_true_pizzas_and_create_text()
+    text = '***Піци***\n' + pizzas_text
+    keyboard = InlineKeyboardMarkup()
+    keyboard.row(InlineKeyboardButton('Створити піцу', callback_data='create_pizza'))
+    keyboard.row(InlineKeyboardButton('Редагувати піцу', callback_data='edit_pizza'))
+    keyboard.row(InlineKeyboardButton('Видалити піцу', callback_data='delete_pizza'))
+    keyboard.row(InlineKeyboardButton('Назад', callback_data='back'))
+    user.send_message(text, keyboard)
+    user.save_next_message_handler(admin_pizzas_menu_handler)
+
+
+def admin_pizzas_menu_handler(user, data):
+    if data == 'create_pizza':
+        admin_create_pizza_menu_1(user)
+    elif data == 'edit_pizza':
+        admin_edit_pizza_menu(user)
+    elif data == 'delete_pizza':
+        admin_delete_pizza_menu(user)
+    elif data == 'back':
+        admin_main_menu(user)
+
+
+def admin_create_pizza_menu_1(user):
+    query = "INSERT INTO Pizza(name, is_custom, is_proto, size) VALUES('new_pizza', false, true, 1) RETURNING id"
+    conn, cursor = connect()
+    cursor.execute(query)
+    conn.commit()
+
+    user.cur_pizza_id = cursor.fetchone()[0]
+
+    query = f"INSERT INTO IngredientInPizza (ingredient_id, pizza_id, grams) " \
+            f"VALUES (1, {user.cur_pizza_id}, 150)"
+    cursor.execute(query)
+    conn.commit()
+
+    admin_create_pizza_menu_2(user)
+
+
+def admin_create_pizza_menu_2(user):
+    query = f"SELECT Pizza.id, Pizza.name, Ingredient.name \n" \
+            f"FROM Pizza \n" \
+            f"JOIN IngredientInPizza ON Pizza.id = IngredientInPizza.pizza_id \n" \
+            f"JOIN Ingredient ON Ingredient.id = IngredientInPizza.ingredient_id \n" \
+            f"WHERE Pizza.id = {user.cur_pizza_id}"
+    conn, cursor = connect()
+    cursor.execute(query)
+    table = cursor.fetchall()[0]
+
+    text = f"id: {table[0]}\nНазва піци: {table[1]}\nІнгредієнти: {', '.join(table[2:])}"
+    keyboard = InlineKeyboardMarkup()
+    keyboard.row(InlineKeyboardButton('Дати назву піци', callback_data='name_the_pizza'))
+    keyboard.row(InlineKeyboardButton('Додати інгридієнти', callback_data='add_ingredients'))
+    keyboard.row(InlineKeyboardButton('Видалити інгредієнти', callback_data='delete_ingredients'))
+    keyboard.row(InlineKeyboardButton('Назад', callback_data='back'))
+    user.send_message(text, keyboard)
+    user.save_next_message_handler(admin_create_pizza_menu_2_handler)
+
+
+def admin_create_pizza_menu_2_handler(user, data):
+    if data == 'back':
+        admin_pizzas_menu(user)
+
+
+def admin_edit_pizza_menu(user):
+    pass
+
+
+def admin_delete_pizza_menu(user):
+    pizza_lst = select_proto_true_pizzas_and_create_text().split('\n')
+    text = 'Видалити піцу' if len(pizza_lst) != 0 else 'Немає піц для видалення'
+
+    keyboard = InlineKeyboardMarkup()
+    for pizza in pizza_lst:
+        keyboard.row(InlineKeyboardButton(f'{pizza}', callback_data=f'{pizza[0]}'))
+
+    keyboard.row(InlineKeyboardButton('Назад', callback_data='back'))
+    user.send_message(text, keyboard)
+    user.save_next_message_handler(admin_delete_pizza_menu_handler)
+
+
+def admin_delete_pizza_menu_handler(user, data):
+    if data == 'back':
+        return admin_pizzas_menu(user)
+    conn, cursor = connect()
+    cursor.execute(f'DELETE FROM Pizza WHERE pizza_id = {data}')
+    conn.commit()
+    admin_delete_pizza_menu(user)
 
 
 HANDLERS = [main_menu_handler, account_menu_handler, nickname_change_menu_handler,
             choose_pizza_menu_handler, choose_pizza_size_menu_handler, cart_menu_handler, order_menu_handler,
             write_the_address_menu_handler, examination_handler, admin_main_menu_handler, admin_order_menu,
-            admin_order_menu_handler]
+            admin_order_menu_handler, admin_change_the_address_handler, admin_ingredients_menu_handler,
+            create_new_ingredient_handler, delete_ingredient_menu_handler, admin_pizzas_menu_handler,
+            admin_delete_pizza_menu_handler, admin_create_pizza_menu_2_handler]

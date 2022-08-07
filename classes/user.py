@@ -71,7 +71,9 @@ class User:
     @classmethod
     def create_default_user(cls, chat_id, conn, cursor):
         new_user = "'new_user'"
-        cursor.execute(f'INSERT INTO {cls.table} (id, username) VALUES({chat_id}, {new_user})')
+        query = f'INSERT INTO {cls.table} (id, username) VALUES({chat_id}, {new_user})'
+        print(query)
+        cursor.execute(query)
         conn.commit()
 
     def save_next_message_handler(self, handler):
@@ -132,5 +134,3 @@ class User:
         query = f"UPDATE Orders SET status = {num} WHERE id = {self.cur_order_id}"
         cursor.execute(query)
         conn.commit()
-
-

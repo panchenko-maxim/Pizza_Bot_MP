@@ -17,7 +17,7 @@ CREATE TABLE Cart(
 );
 
 CREATE TABLE User_(
-    id SERIAL PRIMARY KEY, -- chat_id
+    id BIGSERIAL PRIMARY KEY, -- chat_id
     username VARCHAR(20),
     phone VARCHAR(20) NULL,
     email VARCHAR(30) NULL,
@@ -50,5 +50,5 @@ CREATE TABLE Orders(
     price FLOAT,
     address VARCHAR(50),
     cart_id INT REFERENCES Cart(id),
-    user_id INT REFERENCES User_(id)
+    user_id BIGINT REFERENCES User_(id)
 );
